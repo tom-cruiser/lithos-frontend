@@ -85,7 +85,17 @@ const glassFragmentShader = /* glsl */ `
   varying vec3 vObjectPosition;
 
   void main() {
-    vec3 normal = normalize(vNormal);
+    // DoubleSide is load-bearing for the "glass" read (it's what makes the
+    // far interior surface visible through the near one) — but it means
+    // back-facing triangles reach this shader with their *authored* normal
+    // still pointing away from the camera. Left uncorrected, max(dot(normal,
+    // viewDir), 0.0) clamps that negative dot to 0 and reports *maximum*
+    // fresnel exactly at screen-center (where we're looking straight through
+    // to the far side), which is backwards — it painted the whole sphere as
+    // a solid glowing disc instead of a subtle rim. gl_FrontFacing flips the
+    // normal for back faces so both sides agree on which way is "toward
+    // camera", restoring the intended low-fresnel center / bright-rim look.
+    vec3 normal = normalize(vNormal) * (gl_FrontFacing ? 1.0 : -1.0);
     vec3 viewDir = normalize(vViewPosition);
 
     float bump = valueNoise(vObjectPosition * 22.0) - 0.5;
