@@ -1,7 +1,7 @@
-import { Hero } from '@/components/Hero'
+import { GlobeHero } from '@/components/GlobeHero'
 
 function App() {
-  return <Hero />
+  return <GlobeHero />
 }
 
 export default App
