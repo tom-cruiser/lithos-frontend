@@ -383,6 +383,8 @@ function SceneFallback() {
  * ---------------------------------------------------------------------- */
 
 interface World3DProps {
+  /** Extra classes merged onto the base container (e.g. an entrance
+   * animation) — never a replacement for it, see containerClassName below. */
   className?: string
 }
 
@@ -390,16 +392,24 @@ export function World3D({ className = '' }: World3DProps) {
   const [webglAvailable] = useState(isWebGL2Available)
   const [contextLost, setContextLost] = useState(false)
 
+  // Baked into the component rather than left for callers to remember:
+  // fills its positioned ancestor exactly and stays interactive even if a
+  // future caller wraps it in a pointer-events-none layer for unrelated
+  // foreground UI (pointer-events set directly on an element always wins
+  // over an inherited value from an ancestor, regardless of that ancestor's
+  // specificity — see the pointer-events writeups elsewhere in this app).
+  const containerClassName = `w-full h-full absolute inset-0 pointer-events-auto ${className}`
+
   if (!webglAvailable || contextLost) {
     return (
-      <div className={className}>
+      <div className={containerClassName}>
         <SceneFallback />
       </div>
     )
   }
 
   return (
-    <div className={className}>
+    <div className={containerClassName}>
       <CanvasErrorBoundary fallback={<SceneFallback />}>
         <Canvas
           dpr={[1, 2]}
