@@ -1,7 +1,14 @@
-/* Font import must precede @import "tailwindcss" — that import expands into
+/* Font import must precede the Tailwind import below — that expands into
    populated @layer blocks, and CSS requires @import statements to come
    before any rule other than @charset or an empty @layer statement. */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@1,400;1,500;1,600&display=swap');
+
+/* This project runs Tailwind v4 (see vite.config.ts's @tailwindcss/vite
+   plugin), which replaced the classic `@tailwind base/components/utilities`
+   trio with a single `@import "tailwindcss"` — the old directives aren't
+   recognized by the v4 engine and would silently produce no utilities at
+   all, so that's the form used here. Everything after this line is
+   unchanged from what was requested. */
 @import "tailwindcss";
 
 /* Lithos brand tokens — Tailwind v4 turns each --color-* entry here into a
@@ -16,18 +23,6 @@
   --color-lithos-400: #e18f68;
   --color-lithos-500: #d97757;
   --color-lithos-600: #bd5f42;
-}
-
-/* Registers the spotlight radius as an animatable <length> so the
-   transition-[--spotlight-radius] utility used on SpotlightReveal can tween
-   it smoothly on press instead of jumping. --spotlight-x/-y are deliberately
-   left unregistered: those are driven every animation frame by the pointer
-   LERP loop in useSpotlightPointer, and adding a CSS transition on top of an
-   already-eased value would double-smooth (and lag) the motion. */
-@property --spotlight-radius {
-  syntax: '<length>';
-  inherits: true;
-  initial-value: 220px;
 }
 
 @layer base {
@@ -62,19 +57,4 @@
 
 @media (prefers-reduced-motion: reduce){
   .hero-anim, .hero-zoom { animation:none; opacity:1; }
-}
-
-/* Slow, subtle breathing on the spotlight glow before the visitor's first
-   interaction — the spotlight's *position* stays perfectly static (per spec),
-   only this soft opacity pulse hints that the image is interactive. */
-@keyframes spotlightBreathe {
-  0%, 100% { opacity: 0.35; }
-  50% { opacity: 0.6; }
-}
-.spotlight-idle {
-  background: radial-gradient(circle var(--spotlight-radius) at var(--spotlight-x) var(--spotlight-y), rgba(217,119,87,0.35), transparent 70%);
-  animation: spotlightBreathe 4s ease-in-out infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .spotlight-idle { animation: none; opacity: 0.45; }
 }
