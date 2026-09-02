@@ -1,0 +1,80 @@
+/* Font import must precede @import "tailwindcss" — that import expands into
+   populated @layer blocks, and CSS requires @import statements to come
+   before any rule other than @charset or an empty @layer statement. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@1,400;1,500;1,600&display=swap');
+@import "tailwindcss";
+
+/* Lithos brand tokens — Tailwind v4 turns each --color-* entry here into a
+   matching bg-/text-/border-* utility (e.g. --color-lithos-500 -> bg-lithos-500). */
+@theme {
+  --color-ink: #0a0a0a;
+  --color-stone-100: #f2ede7;
+  --color-stone-300: #cfc6bb;
+  --color-stone-400: #a89e91;
+  --color-stone-500: #8c8175;
+  --color-lithos-300: #e8a688;
+  --color-lithos-400: #e18f68;
+  --color-lithos-500: #d97757;
+  --color-lithos-600: #bd5f42;
+}
+
+/* Registers the spotlight radius as an animatable <length> so the
+   transition-[--spotlight-radius] utility used on SpotlightReveal can tween
+   it smoothly on press instead of jumping. --spotlight-x/-y are deliberately
+   left unregistered: those are driven every animation frame by the pointer
+   LERP loop in useSpotlightPointer, and adding a CSS transition on top of an
+   already-eased value would double-smooth (and lag) the motion. */
+@property --spotlight-radius {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 220px;
+}
+
+@layer base {
+  * { font-family: 'Inter', sans-serif; }
+  .font-playfair { font-family: 'Playfair Display', serif; }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-ink);
+    color: var(--color-stone-100);
+  }
+}
+
+@keyframes heroReveal { 0%{opacity:0;transform:translateY(28px);filter:blur(12px)} 100%{opacity:1;transform:translateY(0);filter:blur(0)} }
+@keyframes heroFadeUp { 0%{opacity:0;transform:translateY(20px)} 100%{opacity:1;transform:translateY(0)} }
+@keyframes heroZoom { 0%{transform:scale(1.12)} 100%{transform:scale(1)} }
+
+.hero-anim { opacity:0; animation-fill-mode:forwards; animation-timing-function:cubic-bezier(0.16,1,0.3,1); }
+.hero-reveal { animation-name:heroReveal; animation-duration:1.1s; }
+.hero-fade { animation-name:heroFadeUp; animation-duration:1s; }
+.hero-zoom { animation:heroZoom 1.8s cubic-bezier(0.16,1,0.3,1) forwards; }
+
+/* Stagger helpers sequencing the hero content reveal (kicker -> headline -> subhead -> CTAs -> stat bar). */
+.hero-delay-1 { animation-delay: 0.12s; }
+.hero-delay-2 { animation-delay: 0.26s; }
+.hero-delay-3 { animation-delay: 0.42s; }
+.hero-delay-4 { animation-delay: 0.58s; }
+.hero-delay-5 { animation-delay: 0.74s; }
+
+@media (prefers-reduced-motion: reduce){
+  .hero-anim, .hero-zoom { animation:none; opacity:1; }
+}
+
+/* Slow, subtle breathing on the spotlight glow before the visitor's first
+   interaction — the spotlight's *position* stays perfectly static (per spec),
+   only this soft opacity pulse hints that the image is interactive. */
+@keyframes spotlightBreathe {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.6; }
+}
+.spotlight-idle {
+  background: radial-gradient(circle var(--spotlight-radius) at var(--spotlight-x) var(--spotlight-y), rgba(217,119,87,0.35), transparent 70%);
+  animation: spotlightBreathe 4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spotlight-idle { animation: none; opacity: 0.45; }
+}
