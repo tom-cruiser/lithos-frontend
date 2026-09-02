@@ -23,6 +23,16 @@
   --color-lithos-400: #e18f68;
   --color-lithos-500: #d97757;
   --color-lithos-600: #bd5f42;
+
+  /* Telemetry accent pair — deliberately separate from the lithos-* brand
+     terracotta above: these read as "live instrument" indicators (glowing
+     status dots, metric readouts) on data/module surfaces like Module 01,
+     rather than as the marketing-site brand accent. Defined as exact
+     literal hexes, same as every other token here, rather than reached for
+     via Tailwind's built-in palette, so module surfaces stay pixel-exact to
+     spec even if Tailwind's default swatches ever drift. */
+  --color-ember: #e8702a;
+  --color-cyan-glow: #38bdf8;
 }
 
 @layer base {
