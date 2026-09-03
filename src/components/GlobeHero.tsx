@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { ArrowRight, Compass, Layers } from 'lucide-react'
+import { ArrowRight, Compass, Orbit } from 'lucide-react'
 import { LithosMark } from '@/components/LithosMark'
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, GLASS_BADGE, GLASS_PANEL } from '@/lib/glass'
 
@@ -15,16 +15,6 @@ const STATS = [
   { value: '86', label: 'Countries mapped' },
   { value: '99.4%', label: 'Model fidelity' },
 ]
-
-/* This navbar's glass recipe (bg-white/5, border-white/10) is a
- * deliberately different translucency than lib/glass.ts's GLASS_PILL_GROUP
- * (bg-white/10, border-white/15) — matching this spec exactly rather than
- * composing/overriding the shared constant. Two Tailwind classes setting the
- * same property don't compose by source order — the stylesheet's own
- * internal order decides the winner — which is exactly how a position-utility
- * bug happened earlier in this app, so variants with different values get
- * their own constant instead of a patched-over shared one. */
-const NAVBAR = 'bg-white/5 backdrop-blur-2xl border border-white/10 rounded-full px-6 py-3 md:px-8'
 
 /**
  * The stage: a solid black backdrop, the glowing wireframe/glass-sphere scene
@@ -102,17 +92,16 @@ export function GlobeHero() {
             itself is hidden there. */}
         <div className="flex flex-1 flex-col justify-center py-16 lg:max-w-[52%]">
           <div className={`${GLASS_BADGE} hero-anim hero-fade hero-delay-1 inline-flex w-fit items-center gap-2 tracking-[0.2em] uppercase`}>
-            <Layers className="h-3.5 w-3.5" strokeWidth={1.75} />
-            Geological survey &amp; mineral intelligence
+            <Orbit className="h-3.5 w-3.5" strokeWidth={1.75} />
+            Orbit to bedrock
           </div>
 
           <h1 className="hero-anim hero-reveal hero-delay-2 mt-6 max-w-xl text-4xl font-normal leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-6xl">
-            The ground remembers <span className="font-playfair italic">everything.</span>
+            Written in rock. <span className="font-playfair italic">Seen from space.</span>
           </h1>
 
-          <p className="hero-anim hero-fade hero-delay-3 mt-6 max-w-lg text-base font-light leading-relaxed text-white/50 sm:text-lg">
-            Lithos fuses satellite spectroscopy, subsurface modeling, and a century of field
-            data to turn raw terrain into decisions you can excavate, build, and invest on.
+          <p className="hero-anim hero-fade hero-delay-3 mt-6 max-w-md text-base font-light leading-relaxed text-white/50 sm:text-lg">
+            Satellite spectroscopy meets subsurface modeling — raw terrain, read as ground truth.
           </p>
 
           <div className="hero-anim hero-fade hero-delay-4 mt-10 flex flex-wrap items-center gap-4">
