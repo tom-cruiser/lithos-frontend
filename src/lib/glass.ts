@@ -23,3 +23,15 @@ export const BUTTON_PRIMARY =
 /** Lower-emphasis actions that still read as part of the glass system. */
 export const BUTTON_SECONDARY =
   'bg-white/10 hover:bg-white/20 active:scale-95 border border-white/15 text-white transition-all duration-200'
+
+/** A deliberately loud, orange "privileged action" button — reserved for
+ * triggers that grant or require admin access (quick-login-as-admin, the
+ * AdminGuard bypass), so that color stays a meaningful signal instead of
+ * just another accent. */
+export const BUTTON_EMBER =
+  'bg-ember text-white shadow-lg shadow-ember/30 hover:scale-105 hover:bg-ember/90 active:scale-95 transition-all duration-200'
+
+/** A small glowing pill for status you want to be noticed — e.g. the
+ * Navbar's "Admin Portal" badge. */
+export const BADGE_EMBER_GLOW =
+  'inline-flex items-center gap-1.5 rounded-full border border-ember/40 bg-ember/10 px-3 py-1.5 text-xs font-semibold text-ember shadow-[0_0_16px_rgba(232,112,42,0.4)]'

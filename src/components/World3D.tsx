@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Gem } from 'lucide-react'
@@ -21,6 +21,18 @@ const CAMERA_PARALLAX_X = 0.45
 const CAMERA_PARALLAX_Y = 0.3
 const LERP_FACTOR = 0.08 // same easing coefficient used by the rest of this app's pointer-driven pieces
 const BASE_CAMERA_POSITION: [number, number, number] = [0, 0, 6.2]
+
+// Hover response — this app's baseline pointer parallax runs everywhere the
+// cursor is on screen (see SceneContent's use of state.pointer below), so on
+// its own the scene never visibly distinguishes "the pointer happens to be
+// somewhere on the page" from "someone is actually engaging with it." These
+// four scale that same tilt/spin/scale behavior up while the pointer is
+// physically over the canvas, eased through hoverIntensity rather than
+// snapped, so the assembly reads as waking up rather than jump-cutting.
+const HOVER_LERP = 0.06 // slower than LERP_FACTOR on purpose — the wake-up/settle itself should feel gradual
+const HOVER_TILT_MULTIPLIER = 1.7 // tilt swings this much further at full hover
+const HOVER_ROTATE_MULTIPLIER = 2.2 // idle spin speeds up by this much at full hover
+const HOVER_SCALE_BOOST = 0.07 // extra uniform scale at full hover (1.0 -> 1.07)
 
 /* ------------------------------------------------------------------------
  * Shaders
@@ -302,15 +314,30 @@ function usePrefersReducedMotion(): boolean {
   return prefersReduced
 }
 
+interface SceneContentProps {
+  /** Whether the pointer is currently over the canvas — a plain mutable ref,
+   * not state, since it's written from a DOM pointerenter/pointerleave
+   * handler in the parent and only ever read inside this component's own
+   * useFrame loop. Routing that through React state would re-render this
+   * (and every ancestor down to it) on every hover edge for no benefit. */
+  isHoveredRef: RefObject<boolean>
+}
+
 /** Orchestrates the whole assembly: pointer-driven camera parallax (moves
  * the camera itself, independent of the object) plus a pointer-driven tilt
  * on the cage+sphere group, layered on top of that group's own continuous
  * idle spin — the same LERP-smoothed-pointer pattern used everywhere else
- * interactive in this app. */
-function SceneContent() {
+ * interactive in this app. On top of that baseline (which runs off pointer
+ * position anywhere on screen), hoverIntensity eases toward 1 while the
+ * pointer is actually over the canvas and scales the tilt/spin/size of the
+ * same motion up, so the object visibly wakes up for someone actively
+ * engaging with it rather than just leaning gently at whatever ambient
+ * pointer position happens to be on screen. */
+function SceneContent({ isHoveredRef }: SceneContentProps) {
   const assemblyRef = useRef<THREE.Group>(null)
   const smoothedPointer = useRef({ x: 0, y: 0 })
   const tilt = useRef({ x: 0, z: 0 })
+  const hoverIntensity = useRef(0)
   const reducedMotion = usePrefersReducedMotion()
 
   useFrame((state, delta) => {
@@ -320,6 +347,13 @@ function SceneContent() {
     smoothedPointer.current.x += (pointer.x - smoothedPointer.current.x) * LERP_FACTOR
     smoothedPointer.current.y += (pointer.y - smoothedPointer.current.y) * LERP_FACTOR
 
+    // Reduced-motion users get none of the hover boost — the ambient
+    // tilt/parallax above was already this component's behavior before this
+    // change and is left as-is, but the *new* motion this adds shouldn't
+    // amplify things for anyone who's opted out.
+    const hoverTarget = !reducedMotion && isHoveredRef.current ? 1 : 0
+    hoverIntensity.current += (hoverTarget - hoverIntensity.current) * HOVER_LERP
+
     camera.position.x = BASE_CAMERA_POSITION[0] + smoothedPointer.current.x * CAMERA_PARALLAX_X
     camera.position.y = BASE_CAMERA_POSITION[1] + smoothedPointer.current.y * CAMERA_PARALLAX_Y
     camera.lookAt(0, 0, 0)
@@ -327,14 +361,19 @@ function SceneContent() {
     const assembly = assemblyRef.current
     if (assembly) {
       if (!reducedMotion) {
-        assembly.rotation.y += clampedDelta * CAGE_ROTATE_SPEED
+        const rotateSpeed = CAGE_ROTATE_SPEED * (1 + hoverIntensity.current * (HOVER_ROTATE_MULTIPLIER - 1))
+        assembly.rotation.y += clampedDelta * rotateSpeed
       }
-      const targetTiltX = smoothedPointer.current.y * MAX_TILT
-      const targetTiltZ = -smoothedPointer.current.x * MAX_TILT
+
+      const tiltRange = MAX_TILT * (1 + hoverIntensity.current * (HOVER_TILT_MULTIPLIER - 1))
+      const targetTiltX = smoothedPointer.current.y * tiltRange
+      const targetTiltZ = -smoothedPointer.current.x * tiltRange
       tilt.current.x += (targetTiltX - tilt.current.x) * LERP_FACTOR
       tilt.current.z += (targetTiltZ - tilt.current.z) * LERP_FACTOR
       assembly.rotation.x = tilt.current.x
       assembly.rotation.z = tilt.current.z
+
+      assembly.scale.setScalar(1 + hoverIntensity.current * HOVER_SCALE_BOOST)
     }
   })
 
@@ -391,6 +430,10 @@ interface World3DProps {
 export function World3D({ className = '' }: World3DProps) {
   const [webglAvailable] = useState(isWebGL2Available)
   const [contextLost, setContextLost] = useState(false)
+  // Plain ref, not state: written from DOM pointer events below and only
+  // ever read inside SceneContent's useFrame loop, so it never needs to
+  // trigger a React re-render — see SceneContentProps' comment for why.
+  const isHoveredRef = useRef(false)
 
   // Baked into the component rather than left for callers to remember:
   // fills its positioned ancestor exactly and stays interactive even if a
@@ -409,7 +452,15 @@ export function World3D({ className = '' }: World3DProps) {
   }
 
   return (
-    <div className={containerClassName}>
+    <div
+      className={containerClassName}
+      onPointerEnter={() => {
+        isHoveredRef.current = true
+      }}
+      onPointerLeave={() => {
+        isHoveredRef.current = false
+      }}
+    >
       <CanvasErrorBoundary fallback={<SceneFallback />}>
         <Canvas
           dpr={[1, 2]}
@@ -423,7 +474,7 @@ export function World3D({ className = '' }: World3DProps) {
           }}
         >
           <Suspense fallback={null}>
-            <SceneContent />
+            <SceneContent isHoveredRef={isHoveredRef} />
           </Suspense>
         </Canvas>
       </CanvasErrorBoundary>

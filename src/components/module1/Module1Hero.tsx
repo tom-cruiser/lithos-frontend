@@ -1,5 +1,4 @@
 import { Layers, Map, Pickaxe } from 'lucide-react'
-import { LithosMark } from '@/components/LithosMark'
 import { TelemetryPanel } from '@/components/module1/TelemetryPanel'
 import { StrataPreview } from '@/components/module1/StrataPreview'
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, GLASS_BADGE } from '@/lib/glass'
@@ -36,14 +35,6 @@ export function Module1Hero() {
           only the elements that opt back in (badge, CTAs, telemetry,
           preview) should ever intercept the pointer. */}
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 pointer-events-none lg:px-8">
-        <header className="hero-anim hero-fade flex items-center justify-between py-8">
-          <div className="flex items-center gap-2.5">
-            <LithosMark />
-            <span className="text-sm font-semibold tracking-[0.28em] text-white">LITHOS</span>
-          </div>
-          <span className={`${GLASS_BADGE} pointer-events-auto tracking-[0.2em]`}>MODULE 01</span>
-        </header>
-
         <div className="flex flex-1 flex-col justify-center py-12">
           <div className={`${GLASS_BADGE} hero-anim hero-fade hero-delay-1 inline-flex w-fit items-center gap-2 tracking-[0.2em] uppercase`}>
             <Layers className="h-3.5 w-3.5" strokeWidth={1.75} />
