@@ -24,7 +24,7 @@ const STATS = [
  * internal order decides the winner — which is exactly how a position-utility
  * bug happened earlier in this app, so variants with different values get
  * their own constant instead of a patched-over shared one. */
-const NAVBAR = 'bg-white/5 backdrop-blur-2xl border border-white/10 rounded-full px-6 py-3'
+const NAVBAR = 'bg-white/5 backdrop-blur-2xl border border-white/10 rounded-full px-6 py-3 md:px-8'
 
 /**
  * The stage: a solid black backdrop, the glowing wireframe/glass-sphere scene
@@ -36,18 +36,19 @@ const NAVBAR = 'bg-white/5 backdrop-blur-2xl border border-white/10 rounded-full
  * its own, so there is exactly one — this one, pinned to the top of this
  * first section.
  *
- * The navbar is positioned to hug its own content (`left-1/2` +
- * `-translate-x-1/2`, not `inset-x-0` + `justify-center`) rather than as a
- * full-width strip with the pill centered inside it. A full-width wrapper
- * would need the pointer-events-none/pointer-events-auto split used
- * elsewhere in this app for exactly this reason — the invisible empty space
- * on either side of the centered pill would otherwise swallow pointer events
- * before they reach the canvas beneath. Sized to its content instead, the
- * navbar's own hit area is just the pill, so nothing extra needs the split.
+ * The navbar spans the full content width (matching the max-w-7xl column
+ * everything else in this section sits in) with its three groups — logo,
+ * links, CTA — pushed to the edges via `justify-between` rather than
+ * hugging together in the center. Unlike Hero.tsx's pointer-events warning
+ * elsewhere in this app, that's safe here without a pointer-events split:
+ * the glass background (NAVBAR) is painted across the *entire* bar, gaps
+ * included, so the whole thing being `pointer-events-auto` only ever
+ * intercepts clicks over what's visibly rendered as nav surface — there's
+ * no invisible dead space stealing hover from the 3D canvas beneath it.
  */
 export function GlobeHero() {
   return (
-    <section className="relative min-h-screen w-full overflow-hidden bg-black text-white">
+    <section className="relative min-h-screen w-full overflow-hidden bg-black bg-[url('/background.jpeg')] bg-cover bg-center text-white">
       {/* The 3D scene's own container fills its nearest positioned ancestor
           (see World3D's containerClassName) — sizing and positioning *that*
           ancestor, rather than the scene itself, is what shrinks it and
@@ -76,9 +77,9 @@ export function GlobeHero() {
           ever intercept the pointer — and, on lg screens, so it doesn't sit
           in front of the 3D canvas stealing hover from it. */}
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 pointer-events-none lg:px-8">
-        <header className="hero-anim hero-fade flex justify-center py-6">
-          <div className={`${NAVBAR} flex items-center gap-8 pointer-events-auto`}>
-            <div className="flex items-center gap-2.5">
+        <header className="hero-anim hero-fade py-6">
+          <div className={`${NAVBAR} flex w-full items-center justify-between pointer-events-auto`}>
+            <div className="flex shrink-0 items-center gap-2.5">
               <LithosMark className="h-6 w-6" />
               <span className="text-sm font-semibold tracking-[0.28em] text-white">LITHOS</span>
             </div>
@@ -89,7 +90,7 @@ export function GlobeHero() {
                 </a>
               ))}
             </nav>
-            <a href="#" className={`${BUTTON_PRIMARY} whitespace-nowrap rounded-full px-4 py-2 text-xs font-semibold`}>
+            <a href="#" className={`${BUTTON_PRIMARY} shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-xs font-semibold`}>
               Request access
             </a>
           </div>
