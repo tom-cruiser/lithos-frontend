@@ -26,19 +26,24 @@ const STATS = [
  * its own, so there is exactly one — this one, pinned to the top of this
  * first section.
  *
- * The navbar spans the full content width (matching the max-w-7xl column
- * everything else in this section sits in) with its three groups — logo,
- * links, CTA — pushed to the edges via `justify-between` rather than
- * hugging together in the center. Unlike Hero.tsx's pointer-events warning
- * elsewhere in this app, that's safe here without a pointer-events split:
- * the glass background (NAVBAR) is painted across the *entire* bar, gaps
- * included, so the whole thing being `pointer-events-auto` only ever
- * intercepts clicks over what's visibly rendered as nav surface — there's
- * no invisible dead space stealing hover from the 3D canvas beneath it.
+ * The navbar is styled after Starlink's: a flat, transparent bar sitting
+ * directly on the hero backdrop — no glass pill, no border, no blur, no
+ * background at all — with the logo and links clustered together on the
+ * left and a single CTA pinned to the right via `justify-between`, spanning
+ * the full content width (matching the max-w-7xl column everything else in
+ * this section sits in).
+ *
+ * Because there's no background painting the bar, this needs the same
+ * pointer-events-none/pointer-events-auto split Hero.tsx uses elsewhere in
+ * this app: the header itself stays pointer-events-none (inherited from its
+ * parent), and only the actually-clickable pieces (the nav links, the CTA)
+ * opt back in. Without that split, the invisible full-width row would
+ * swallow hover before it reaches the 3D canvas sitting behind it on the
+ * right.
  */
 export function GlobeHero() {
   return (
-    <section className="relative min-h-screen w-full overflow-hidden bg-black bg-[url('/background.jpeg')] bg-cover bg-center text-white">
+    <section className="relative min-h-screen w-full overflow-hidden bg-black bg-[url('/chona.jpeg')] bg-cover bg-center text-white">
       {/* The 3D scene's own container fills its nearest positioned ancestor
           (see World3D's containerClassName) — sizing and positioning *that*
           ancestor, rather than the scene itself, is what shrinks it and
@@ -67,23 +72,23 @@ export function GlobeHero() {
           ever intercept the pointer — and, on lg screens, so it doesn't sit
           in front of the 3D canvas stealing hover from it. */}
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 pointer-events-none lg:px-8">
-        <header className="hero-anim hero-fade py-6">
-          <div className={`${NAVBAR} flex w-full items-center justify-between pointer-events-auto`}>
+        <header className="hero-anim hero-fade flex w-full items-center justify-between py-6">
+          <div className="flex items-center gap-10">
             <div className="flex shrink-0 items-center gap-2.5">
               <LithosMark className="h-6 w-6" />
               <span className="text-sm font-semibold tracking-[0.28em] text-white">LITHOS</span>
             </div>
-            <nav className="hidden items-center gap-6 whitespace-nowrap text-sm text-white/70 md:flex">
+            <nav className="hidden items-center gap-6 whitespace-nowrap text-sm text-white/70 pointer-events-auto md:flex">
               {NAV_LINKS.map((link) => (
                 <a key={link} href="#" className="transition-colors hover:text-white">
                   {link}
                 </a>
               ))}
             </nav>
-            <a href="#" className={`${BUTTON_PRIMARY} shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-xs font-semibold`}>
-              Request access
-            </a>
           </div>
+          <a href="#" className={`${BUTTON_PRIMARY} pointer-events-auto shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-xs font-semibold`}>
+            Request access
+          </a>
         </header>
 
         {/* Primary content — confined to roughly the left half on lg screens

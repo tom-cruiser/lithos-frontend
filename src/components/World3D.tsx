@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Canvas, useFrame, useLoader } from '@react-three/fiber'
 import * as THREE from 'three'
 import { Gem } from 'lucide-react'
 import { CanvasErrorBoundary } from '@/components/three/CanvasErrorBoundary'
@@ -8,14 +8,11 @@ import { CanvasErrorBoundary } from '@/components/three/CanvasErrorBoundary'
  * Tuning constants
  * ---------------------------------------------------------------------- */
 
-const STARDUST_RADIUS = 0.92
 const GLASS_SPHERE_RADIUS = 1.05
 const CAGE_INNER_RADIUS = 1.4
 const CAGE_OUTER_RADIUS = 1.9
-const STARDUST_COUNT = 1100
 
 const CAGE_ROTATE_SPEED = 0.05 // rad/s — slow idle spin of the whole cage+sphere assembly
-const PARTICLE_ROTATE_SPEED = 0.14 // rad/s — the interior stardust drifts independently, on top of that
 const MAX_TILT = 0.22 // rad — how far the assembly leans toward the pointer
 const CAMERA_PARALLAX_X = 0.45
 const CAMERA_PARALLAX_Y = 0.3
@@ -37,94 +34,6 @@ const HOVER_SCALE_BOOST = 0.07 // extra uniform scale at full hover (1.0 -> 1.07
 /* ------------------------------------------------------------------------
  * Shaders
  * ---------------------------------------------------------------------- */
-
-/** Compact hash-based 3D value noise — same technique used by the geology
- * hero's core-sample shader elsewhere in this app: cheaper and far less
- * error-prone to hand-write correctly than full simplex noise, and plenty
- * organic-looking for surface-scale detail like this. */
-const noiseGLSL = /* glsl */ `
-  float hash(vec3 p) {
-    p = fract(p * 0.3183099 + 0.1);
-    p *= 17.0;
-    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-  }
-  float valueNoise(vec3 x) {
-    vec3 i = floor(x);
-    vec3 f = fract(x);
-    f = f * f * (3.0 - 2.0 * f);
-    return mix(
-      mix(
-        mix(hash(i + vec3(0.0, 0.0, 0.0)), hash(i + vec3(1.0, 0.0, 0.0)), f.x),
-        mix(hash(i + vec3(0.0, 1.0, 0.0)), hash(i + vec3(1.0, 1.0, 0.0)), f.x),
-        f.y
-      ),
-      mix(
-        mix(hash(i + vec3(0.0, 0.0, 1.0)), hash(i + vec3(1.0, 0.0, 1.0)), f.x),
-        mix(hash(i + vec3(0.0, 1.0, 1.0)), hash(i + vec3(1.0, 1.0, 1.0)), f.x),
-        f.y
-      ),
-      f.z
-    );
-  }
-`
-
-const glassVertexShader = /* glsl */ `
-  varying vec3 vNormal;
-  varying vec3 vViewPosition;
-  varying vec3 vObjectPosition;
-  void main() {
-    vObjectPosition = position;
-    vNormal = normalize(normalMatrix * normal);
-    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    vViewPosition = -mvPosition.xyz;
-    gl_Position = projectionMatrix * mvPosition;
-  }
-`
-
-/** No lighting relies on real THREE.Light objects (see World3D's doc
- * comment) — this fresnel + fake-specular pair is the sphere's entire
- * shading model, self-contained in the shader. The "bump map reflections"
- * asked for are approximated procedurally: rather than sourcing a droplet
- * texture asset, high-frequency noise perturbs the shading normal directly,
- * producing small flecks of specular sparkle across the surface that read
- * as condensation/droplets without needing an image file. */
-const glassFragmentShader = /* glsl */ `
-  ${noiseGLSL}
-  uniform vec3 uColor;
-  uniform vec3 uGlowColor;
-  varying vec3 vNormal;
-  varying vec3 vViewPosition;
-  varying vec3 vObjectPosition;
-
-  void main() {
-    // DoubleSide is load-bearing for the "glass" read (it's what makes the
-    // far interior surface visible through the near one) — but it means
-    // back-facing triangles reach this shader with their *authored* normal
-    // still pointing away from the camera. Left uncorrected, max(dot(normal,
-    // viewDir), 0.0) clamps that negative dot to 0 and reports *maximum*
-    // fresnel exactly at screen-center (where we're looking straight through
-    // to the far side), which is backwards — it painted the whole sphere as
-    // a solid glowing disc instead of a subtle rim. gl_FrontFacing flips the
-    // normal for back faces so both sides agree on which way is "toward
-    // camera", restoring the intended low-fresnel center / bright-rim look.
-    vec3 normal = normalize(vNormal) * (gl_FrontFacing ? 1.0 : -1.0);
-    vec3 viewDir = normalize(vViewPosition);
-
-    float bump = valueNoise(vObjectPosition * 22.0) - 0.5;
-    vec3 bumpNormal = normalize(normal + vec3(bump) * 0.7);
-
-    float fresnel = pow(1.0 - max(dot(bumpNormal, viewDir), 0.0), 2.6);
-    vec3 fakeLightDir = normalize(vec3(0.3, 0.5, 0.8));
-    float specular = pow(max(dot(reflect(-viewDir, bumpNormal), fakeLightDir), 0.0), 28.0);
-
-    vec3 color = uColor;
-    color += fresnel * uGlowColor * 0.85;
-    color += specular * vec3(1.0);
-
-    float alpha = clamp(0.32 + fresnel * 0.55, 0.0, 0.92);
-    gl_FragColor = vec4(color, alpha);
-  }
-`
 
 /* ------------------------------------------------------------------------
  * A soft circular sprite for points — Points render as hard squares without
@@ -150,29 +59,6 @@ function createGlowSpriteTexture(): THREE.Texture {
   texture.needsUpdate = true
   return texture
 }
-
-/** Uniformly-distributed random points *within* a sphere volume (not just on
- * its surface) — direction sampled uniformly on the unit sphere, radius
- * scaled by cube-root of a uniform random so density stays even with volume
- * rather than clustering toward the center. */
-function createStardustPositions(count: number, maxRadius: number): Float32Array {
-  const positions = new Float32Array(count * 3)
-  for (let i = 0; i < count; i++) {
-    const u = Math.random()
-    const v = Math.random()
-    const theta = u * Math.PI * 2
-    const phi = Math.acos(2 * v - 1)
-    const r = maxRadius * Math.cbrt(Math.random())
-    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta)
-    positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta)
-    positions[i * 3 + 2] = r * Math.cos(phi)
-  }
-  return positions
-}
-
-/* ------------------------------------------------------------------------
- * Scene pieces
- * ---------------------------------------------------------------------- */
 
 function useGlowTexture(): THREE.Texture {
   return useMemo(() => createGlowSpriteTexture(), [])
@@ -230,74 +116,57 @@ function WireframeCage() {
   )
 }
 
-/** The inner glass sphere — fully unlit (see file header), transparent, with
- * a fresnel rim and procedurally-perturbed specular sparkle standing in for
- * a droplet bump map. Rendered `DoubleSide` so its far inner surface is
- * visible too, which is most of what reads as "glass" rather than "disc". */
-function GlassSphere() {
+// global.jpeg is a 736x920 photo of a globe on a pale backdrop, not a
+// map, so it can't be wrapped by UVs. Instead each point on a real 3D sphere
+// looks up the photo by inverting an orthographic projection (x/y of the
+// point -> pixel inside the globe's disc). The far hemisphere reuses the same
+// pixels mirrored, so the sphere has no blank side while it turns.
+const GLOBE_IMAGE = { width: 736, height: 920, cx: 370, cy: 447, radius: 272 }
+
+const globeVertexShader = /* glsl */ `
+  varying vec3 vObjectPosition;
+  void main() {
+    vObjectPosition = normalize(position);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+
+const globeFragmentShader = /* glsl */ `
+  uniform sampler2D uMap;
+  uniform vec2 uImageSize;
+  uniform vec2 uCenter;
+  uniform float uRadius;
+  varying vec3 vObjectPosition;
+
+  void main() {
+    // 0.97 keeps lookups off the photo's pale limb/backdrop.
+    vec2 px = uCenter + vec2(vObjectPosition.x, -vObjectPosition.y) * uRadius * 0.97;
+    vec3 color = texture2D(uMap, px / uImageSize).rgb;
+    // Darken the mirrored far side slightly so it reads as turning away.
+    color *= vObjectPosition.z >= 0.0 ? 1.0 : 0.8;
+    gl_FragColor = vec4(color, 1.0);
+  }
+`
+
+/** The globe: a real sphere textured from global.jpeg. Lives inside the
+ * cage's group so it turns at exactly the cage's rate. */
+function GlobeSphere() {
+  const map = useLoader(THREE.TextureLoader, '/global.jpeg')
+  map.colorSpace = THREE.SRGBColorSpace
   const uniforms = useMemo(
     () => ({
-      uColor: { value: new THREE.Color('#0a1018') },
-      uGlowColor: { value: new THREE.Color('#38bdf8') },
+      uMap: { value: map },
+      uImageSize: { value: new THREE.Vector2(GLOBE_IMAGE.width, GLOBE_IMAGE.height) },
+      uCenter: { value: new THREE.Vector2(GLOBE_IMAGE.cx, GLOBE_IMAGE.cy) },
+      uRadius: { value: GLOBE_IMAGE.radius },
     }),
-    [],
+    [map],
   )
   return (
-    <mesh renderOrder={2}>
-      <sphereGeometry args={[GLASS_SPHERE_RADIUS, 64, 64]} />
-      <shaderMaterial
-        vertexShader={glassVertexShader}
-        fragmentShader={glassFragmentShader}
-        uniforms={uniforms}
-        transparent
-        side={THREE.DoubleSide}
-        depthWrite={false}
-      />
+    <mesh>
+      <sphereGeometry args={[GLASS_SPHERE_RADIUS, 96, 96]} />
+      <shaderMaterial vertexShader={globeVertexShader} fragmentShader={globeFragmentShader} uniforms={uniforms} />
     </mesh>
-  )
-}
-
-interface StardustParticlesProps {
-  reducedMotion: boolean
-}
-
-/** A dense point cloud restricted to the sphere's interior — its own slow,
- * independent rotation on top of whatever the parent cage group is doing,
- * so the dust visibly drifts on its own rather than being rigidly locked to
- * the cage's spin. */
-function StardustParticles({ reducedMotion }: StardustParticlesProps) {
-  const groupRef = useRef<THREE.Group>(null)
-  const glowTexture = useGlowTexture()
-
-  const geometry = useMemo(() => {
-    const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.BufferAttribute(createStardustPositions(STARDUST_COUNT, STARDUST_RADIUS), 3))
-    return g
-  }, [])
-
-  useFrame((_, delta) => {
-    const group = groupRef.current
-    if (!group || reducedMotion) return
-    const clampedDelta = Math.min(delta, 1 / 30)
-    group.rotation.y += clampedDelta * PARTICLE_ROTATE_SPEED
-    group.rotation.x += clampedDelta * PARTICLE_ROTATE_SPEED * 0.4
-  })
-
-  return (
-    <group ref={groupRef}>
-      <points geometry={geometry} renderOrder={1}>
-        <pointsMaterial
-          map={glowTexture}
-          size={0.035}
-          color="#dceeff"
-          transparent
-          opacity={0.9}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-          sizeAttenuation
-        />
-      </points>
-    </group>
   )
 }
 
@@ -380,8 +249,7 @@ function SceneContent({ isHoveredRef }: SceneContentProps) {
   return (
     <group ref={assemblyRef}>
       <WireframeCage />
-      <GlassSphere />
-      <StardustParticles reducedMotion={reducedMotion} />
+      <GlobeSphere />
     </group>
   )
 }
